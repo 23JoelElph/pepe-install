@@ -1,0 +1,9 @@
+# no secrets
+*.log
+*.tmp
+*.bak
+.env
+secrets/
+*.pem
+*.key
+authorized_keys
