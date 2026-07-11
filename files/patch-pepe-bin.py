@@ -118,6 +118,26 @@ def patch():
         print(f"[*] {orig.decode()!r:40s} → {repl.decode()!r}: {count} replacement(s)")
         total += count
 
+    # ── универсальный swap для ANY minified var (H, n, s, q, ...):
+    # Claude Code обновления минифицируют переменные по-новому.
+    # Ищем ЛЮБУЮ 1-2 буквенную переменную X:  X.hookName," says: ",X.content
+    # и заменяем на такую же длину: ""(spaces),""(spaces),X.content
+    import re
+    pattern = re.compile(rb'([A-Za-z][A-Za-z0-9]?)\.hookName," says: ",\1\.content')
+    def replace_hookname(match):
+        var = match.group(1)
+        # 8 пробелов после первого ""
+        # (6 + len(var)) пробелов после `,""` — чтобы длина совпала с original
+        new = b'""' + b' ' * 8 + b',""' + b' ' * (6 + len(var)) + b',' + var + b'.content'
+        assert len(new) == match.end() - match.start(), \
+            f"length mismatch: var={var!r} new={len(new)} orig={match.end()-match.start()}"
+        return new
+    new_data, sub_count = pattern.subn(replace_hookname, bytes(data))
+    if sub_count > 0:
+        data = bytearray(new_data)
+        print(f"[*] universal X.hookName pattern: {sub_count} replacement(s)")
+        total += sub_count
+
     for t in TARGETED:
         anchor, old, new = t["anchor"], t["old"], t["new"]
         if len(old) != len(new):
