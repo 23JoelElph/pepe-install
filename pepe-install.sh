@@ -134,28 +134,47 @@ done
 HOOKS_N=$(ls "$CLAUDE_DIR"/pepe-*.sh 2>/dev/null | wc -l)
 ok "hooks: $HOOKS_N"
 
-# ═════ 5. banner + statusline + settings ═════════════
-log "[5] PepeCode brand (banner, statusline, settings)"
+# ═════ 5. brand: art, banner, statusline, patch ═════
+log "[5] PepeCode brand (art, banner, statusline, patch)"
 
-# banner на .bashrc / .zshrc
-BANNER_LINE="[ -f $INSTALL_DIR/files/pepe-banner.sh ] && bash $INSTALL_DIR/files/pepe-banner.sh"
+# Убираем строку banner из bashrc/zshrc (banner только при claude)
 for rc in "$REAL_HOME/.bashrc" "$REAL_HOME/.zshrc"; do
     [ -f "$rc" ] || continue
-    grep -qF "pepe-banner.sh" "$rc" || echo -e "\n# PEPE CODE banner\n$BANNER_LINE" >> "$rc"
+    if grep -q "pepe-banner.sh" "$rc"; then
+        sudo -u "$REAL_USER" cp "$rc" "${rc}.pre-pepe-bashrc-cleanup.bak"
+        sudo -u "$REAL_USER" sed -i '/# PEPE CODE banner/d; /pepe-banner\.sh/d' "$rc"
+        ok "$(basename $rc): banner-строка убрана"
+    fi
 done
-ok "banner подключён в .bashrc/.zshrc"
 
-# statusline
-sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/statusline-pepe.sh" "$CLAUDE_DIR/statusline-pepe.sh"
-sudo -u "$REAL_USER" chmod +x "$CLAUDE_DIR/statusline-pepe.sh"
-ok "statusline установлен"
+# Копируем ассеты в ~/.claude/
+for asset in pepe-art.txt pepe-banner.sh statusline-pepe.sh patch-pepe-bin.py; do
+    sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/$asset" "$CLAUDE_DIR/$asset"
+done
+sudo -u "$REAL_USER" chmod +x "$CLAUDE_DIR/pepe-banner.sh" "$CLAUDE_DIR/statusline-pepe.sh" "$CLAUDE_DIR/patch-pepe-bin.py"
+ok "ассеты: pepe-art.txt · pepe-banner.sh · statusline-pepe.sh · patch-pepe-bin.py"
 
-# settings.json (merge — не перетираем чужие настройки)
+# settings.json (не перетираем — если есть, оставляем чужие настройки)
 if [ ! -f "$CLAUDE_DIR/settings.json" ]; then
-    sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/settings.pepe.json" "$CLAUDE_DIR/settings.json"
-    ok "settings.json создан"
+    # заменяем __HOME__ на реальный home
+    sudo -u "$REAL_USER" sed "s|__HOME__|$REAL_HOME|g" \
+        "$INSTALL_DIR/files/settings.pepe.json" > "$CLAUDE_DIR/settings.json"
+    sudo -u "$REAL_USER" chown "$REAL_USER:$REAL_USER" "$CLAUDE_DIR/settings.json"
+    ok "settings.json создан (SessionStart hook + statusline фиолетовый)"
 else
-    warn "settings.json уже есть — не перетираю. Смотри $INSTALL_DIR/files/settings.pepe.json для сверки."
+    warn "settings.json уже есть — не перетираю. Сверься с $INSTALL_DIR/files/settings.pepe.json"
+fi
+
+# Патч бинарника claude — убирает "SessionStart:startup says:" префикс перед баннером
+CLAUDE_BIN=$(which claude 2>/dev/null || echo "")
+if [ -n "$CLAUDE_BIN" ] && [ -f "$CLAUDE_BIN" ]; then
+    if sudo -u "$REAL_USER" python3 "$CLAUDE_DIR/patch-pepe-bin.py" 2>&1 | tail -2; then
+        ok "бинарь claude пропатчен — префикс SessionStart убран"
+    else
+        warn "patch не удался — запусти вручную: python3 ~/.claude/patch-pepe-bin.py"
+    fi
+else
+    warn "claude бинарь не найден — patch пропущен (переустанови pepe-install после npm install)"
 fi
 
 # ═════ 6. vault — клонируется с GitHub через deploy-key ═══
