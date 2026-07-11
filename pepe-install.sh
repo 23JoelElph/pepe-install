@@ -86,12 +86,22 @@ fi
 # ═════ 3. клонирую pepe-install (публичный) ══════════
 log "[3] pepe-install репозиторий"
 INSTALL_DIR="$REAL_HOME/pepe-install"
+
+# если существующий origin отличается — сносим и клонируем заново
 if [ -d "$INSTALL_DIR/.git" ]; then
-    ok "уже есть — pull"
-    sudo -u "$REAL_USER" git -C "$INSTALL_DIR" pull 2>&1 | tail -2
-else
+    CURRENT_ORIGIN=$(sudo -u "$REAL_USER" git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || echo "")
+    if [ "$CURRENT_ORIGIN" != "$INSTALL_REPO" ]; then
+        warn "старый ~/pepe-install (origin: $CURRENT_ORIGIN) — сношу и клонирую свежий"
+        rm -rf "$INSTALL_DIR"
+    fi
+fi
+
+if [ ! -d "$INSTALL_DIR/.git" ]; then
     sudo -u "$REAL_USER" git clone "$INSTALL_REPO" "$INSTALL_DIR" 2>&1 | tail -2
     ok "клонировано в $INSTALL_DIR"
+else
+    sudo -u "$REAL_USER" git -C "$INSTALL_DIR" pull 2>&1 | tail -2
+    ok "обновлено (pull)"
 fi
 
 # ═════ 4. раскладка skills/agents/commands/hooks ═════
