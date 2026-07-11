@@ -148,47 +148,74 @@ else
     warn "settings.json уже есть — не перетираю. Смотри $INSTALL_DIR/files/settings.pepe.json для сверки."
 fi
 
-# ═════ 6. vault — клонируется с OPi через pepe-friend ═════
-log "[6] pepe-vault — клон через OPi (не GitHub)"
+# ═════ 6. vault — клонируется с GitHub через deploy-key ═══
+log "[6] pepe-vault — приватный репозиторий на GitHub"
 VAULT_DIR="$REAL_HOME/pepe-vault"
 
-# Устанавливаем shared read/write SSH-key на OPi
+# Генерируем персональный SSH-ключ (если ещё нет)
 SSH_DIR="$REAL_HOME/.ssh"
+KEY="$SSH_DIR/id_pepe_${FRIEND_NAME}"
 sudo -u "$REAL_USER" mkdir -p "$SSH_DIR"
 sudo -u "$REAL_USER" chmod 700 "$SSH_DIR"
-sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/pepe-friend-key" "$SSH_DIR/id_pepe_friend"
-sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/pepe-friend-key.pub" "$SSH_DIR/id_pepe_friend.pub"
-sudo -u "$REAL_USER" chmod 600 "$SSH_DIR/id_pepe_friend"
-ok "ключ для OPi: ~/.ssh/id_pepe_friend"
 
-# SSH-config: git-серверу использовать этот ключ
-if ! grep -q "Host pepe-git" "$SSH_DIR/config" 2>/dev/null; then
+if [ ! -f "$KEY" ]; then
+    sudo -u "$REAL_USER" ssh-keygen -t ed25519 -f "$KEY" -N '' \
+        -C "${FRIEND_NAME}@pepe-$(date +%Y-%m-%d)" >/dev/null 2>&1
+    ok "SSH-ключ сгенерирован: $KEY"
+fi
+
+# SSH-config: github-vault → использовать этот ключ
+if ! grep -q "Host github-vault" "$SSH_DIR/config" 2>/dev/null; then
     sudo -u "$REAL_USER" tee -a "$SSH_DIR/config" >/dev/null <<SSHCFG
 
-Host pepe-git
-    HostName $OPI_HOST
-    User pepe-friend
-    IdentityFile ~/.ssh/id_pepe_friend
+Host github-vault
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_pepe_${FRIEND_NAME}
+    IdentitiesOnly yes
     StrictHostKeyChecking accept-new
 SSHCFG
-    ok "SSH-config: alias pepe-git → $OPI_HOST"
+    ok "SSH-config: alias github-vault → github.com"
 fi
 
-# Клон / pull
+# Пробуем клонировать
+VAULT_URL="git@github-vault:${GITHUB_USER}/pepe-vault.git"
 if [ -d "$VAULT_DIR/.git" ]; then
-    sudo -u "$REAL_USER" git -C "$VAULT_DIR" pull 2>&1 | tail -2
+    sudo -u "$REAL_USER" git -C "$VAULT_DIR" pull 2>&1 | tail -2 || \
+        warn "pull упал — возможно ключ ещё не добавлен на GitHub"
 else
-    sudo -u "$REAL_USER" git clone pepe-git:git-repos/pepe-vault.git "$VAULT_DIR" 2>&1 | tail -2 || \
-        warn "clone упал — проверь Tailscale + доступ к $OPI_HOST"
+    if sudo -u "$REAL_USER" git clone "$VAULT_URL" "$VAULT_DIR" 2>&1 | tail -3; then
+        ok "vault клонирован"
+    else
+        # Ключ ещё не добавлен на GitHub — показываем инструкцию
+        PUB=$(cat "$KEY.pub")
+        echo ""
+        printf "  ${P}════════════════════════════════════════════════════════${R}\n"
+        printf "  ${P}!  Ключ ещё не добавлен на GitHub. Инструкция:${R}\n"
+        printf "  ${P}════════════════════════════════════════════════════════${R}\n\n"
+        echo "  1. Скопируй свой ПУБЛИЧНЫЙ ключ (одна строка снизу):"
+        echo ""
+        printf "  ${G}${PUB}${R}\n\n"
+        echo "  2. Отправь его Molodoy — он добавит за 30 секунд на:"
+        echo "     https://github.com/${GITHUB_USER}/pepe-vault/settings/keys/new"
+        echo "     • Title: ${FRIEND_NAME}-$(date +%Y-%m-%d)"
+        echo "     • Key: (вставь публичный)"
+        echo "     • ✓ Allow write access"
+        echo ""
+        echo "  3. Дождись подтверждения и запусти установщик снова:"
+        printf "     ${V}bash ~/pepe-install/pepe-install.sh ${FRIEND_NAME}${R}\n"
+        echo ""
+        printf "  ${P}════════════════════════════════════════════════════════${R}\n"
+    fi
 fi
 
-# ═════ 7. cron: sync 3× в день на OPi ═════════════════
-log "[7] cron: sync brain+memory 3× в день на OPi"
-CRON_TAG="# pepe-vault-sync-opi"
+# ═════ 7. cron: push 3× в день на GitHub ═════════════
+log "[7] cron: push brain+memory 3× в день на GitHub"
+CRON_TAG="# pepe-vault-sync-github"
 (sudo -u "$REAL_USER" crontab -l 2>/dev/null | grep -v "$CRON_TAG"; \
  echo "0 9,15,22 * * * cd $VAULT_DIR && git push origin main >/dev/null 2>&1 $CRON_TAG") | \
     sudo -u "$REAL_USER" crontab -
-ok "cron: 09:00 / 15:00 / 22:00 push → OPi"
+ok "cron: 09:00 / 15:00 / 22:00 push → GitHub"
 
 # ═════ финал ═════════════════════════════════════════
 log "🐸 PEPE CODE установлен · $FRIEND_NAME"
