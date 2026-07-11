@@ -148,26 +148,47 @@ else
     warn "settings.json уже есть — не перетираю. Смотри $INSTALL_DIR/files/settings.pepe.json для сверки."
 fi
 
-# ═════ 6. vault (приватный — нужен GitHub PAT) ═══════
-log "[6] pepe-vault (память + brain)"
+# ═════ 6. vault — клонируется с OPi через pepe-friend ═════
+log "[6] pepe-vault — клон через OPi (не GitHub)"
 VAULT_DIR="$REAL_HOME/pepe-vault"
-if [ -d "$VAULT_DIR/.git" ]; then
-    ok "vault уже клонирован — pull"
-    sudo -u "$REAL_USER" git -C "$VAULT_DIR" pull 2>&1 | tail -2 || warn "pull упал — проверь PAT"
-else
-    warn "vault приватный — нужен GitHub PAT (scope repo) от Molodoy"
-    warn "клонирование пропущено. Запусти вручную:"
-    warn "  git clone https://<PAT>@github.com/${GITHUB_USER}/pepe-vault.git $VAULT_DIR"
+
+# Устанавливаем shared read/write SSH-key на OPi
+SSH_DIR="$REAL_HOME/.ssh"
+sudo -u "$REAL_USER" mkdir -p "$SSH_DIR"
+sudo -u "$REAL_USER" chmod 700 "$SSH_DIR"
+sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/pepe-friend-key" "$SSH_DIR/id_pepe_friend"
+sudo -u "$REAL_USER" cp "$INSTALL_DIR/files/pepe-friend-key.pub" "$SSH_DIR/id_pepe_friend.pub"
+sudo -u "$REAL_USER" chmod 600 "$SSH_DIR/id_pepe_friend"
+ok "ключ для OPi: ~/.ssh/id_pepe_friend"
+
+# SSH-config: git-серверу использовать этот ключ
+if ! grep -q "Host pepe-git" "$SSH_DIR/config" 2>/dev/null; then
+    sudo -u "$REAL_USER" tee -a "$SSH_DIR/config" >/dev/null <<SSHCFG
+
+Host pepe-git
+    HostName $OPI_HOST
+    User pepe-friend
+    IdentityFile ~/.ssh/id_pepe_friend
+    StrictHostKeyChecking accept-new
+SSHCFG
+    ok "SSH-config: alias pepe-git → $OPI_HOST"
 fi
 
-# ═════ 7. cron синк 3× в день на OPi ═════════════════
-log "[7] cron: sync brain+memory 3× в день на домашний сервер OPi"
-# Расписание — оптимально с точки зрения активности: 09:00 (утро), 15:00 (день), 22:00 (вечер) EEST
+# Клон / pull
+if [ -d "$VAULT_DIR/.git" ]; then
+    sudo -u "$REAL_USER" git -C "$VAULT_DIR" pull 2>&1 | tail -2
+else
+    sudo -u "$REAL_USER" git clone pepe-git:git-repos/pepe-vault.git "$VAULT_DIR" 2>&1 | tail -2 || \
+        warn "clone упал — проверь Tailscale + доступ к $OPI_HOST"
+fi
+
+# ═════ 7. cron: sync 3× в день на OPi ═════════════════
+log "[7] cron: sync brain+memory 3× в день на OPi"
 CRON_TAG="# pepe-vault-sync-opi"
 (sudo -u "$REAL_USER" crontab -l 2>/dev/null | grep -v "$CRON_TAG"; \
- echo "0 9,15,22 * * * cd $VAULT_DIR && git push opi main >/dev/null 2>&1 $CRON_TAG") | \
+ echo "0 9,15,22 * * * cd $VAULT_DIR && git push origin main >/dev/null 2>&1 $CRON_TAG") | \
     sudo -u "$REAL_USER" crontab -
-ok "cron: 09:00 / 15:00 / 22:00 push → opi"
+ok "cron: 09:00 / 15:00 / 22:00 push → OPi"
 
 # ═════ финал ═════════════════════════════════════════
 log "🐸 PEPE CODE установлен · $FRIEND_NAME"
