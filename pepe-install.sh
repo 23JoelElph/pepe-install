@@ -154,16 +154,15 @@ done
 sudo -u "$REAL_USER" chmod +x "$CLAUDE_DIR/pepe-banner.sh" "$CLAUDE_DIR/statusline-pepe.sh" "$CLAUDE_DIR/patch-pepe-bin.py"
 ok "ассеты: pepe-art.txt · pepe-banner.sh · statusline-pepe.sh · patch-pepe-bin.py"
 
-# settings.json (не перетираем — если есть, оставляем чужие настройки)
-if [ ! -f "$CLAUDE_DIR/settings.json" ]; then
-    # заменяем __HOME__ на реальный home
-    sudo -u "$REAL_USER" sed "s|__HOME__|$REAL_HOME|g" \
-        "$INSTALL_DIR/files/settings.pepe.json" > "$CLAUDE_DIR/settings.json"
-    sudo -u "$REAL_USER" chown "$REAL_USER:$REAL_USER" "$CLAUDE_DIR/settings.json"
-    ok "settings.json создан (SessionStart hook + statusline фиолетовый)"
-else
-    warn "settings.json уже есть — не перетираю. Сверься с $INSTALL_DIR/files/settings.pepe.json"
+# settings.json — всегда актуализируем (с бэкапом старого)
+if [ -f "$CLAUDE_DIR/settings.json" ]; then
+    sudo -u "$REAL_USER" cp "$CLAUDE_DIR/settings.json" "$CLAUDE_DIR/settings.json.pre-pepe.bak"
+    ok "старый settings.json → settings.json.pre-pepe.bak"
 fi
+sudo -u "$REAL_USER" sed "s|__HOME__|$REAL_HOME|g" \
+    "$INSTALL_DIR/files/settings.pepe.json" > "$CLAUDE_DIR/settings.json"
+sudo -u "$REAL_USER" chown "$REAL_USER:$REAL_USER" "$CLAUDE_DIR/settings.json"
+ok "settings.json обновлён (все PEPE-хуки + фиолетовый statusline)"
 
 # Патч бинарника claude — убирает "SessionStart:startup says:" префикс перед баннером
 CLAUDE_BIN=$(which claude 2>/dev/null || echo "")

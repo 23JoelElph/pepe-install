@@ -1,11 +1,25 @@
 {
+  "model": "claude-opus-4-7",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "startup",
         "hooks": [
-          { "type": "command", "command": "__HOME__/.claude/pepe-hook.sh", "timeout": 5 },
-          { "type": "command", "command": "__HOME__/.claude/pepe-vault-pull.sh", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-hook.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-vault-pull.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-context-inject.sh",
+            "timeout": 5
+          }
         ]
       }
     ],
@@ -13,7 +27,21 @@
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "__HOME__/.claude/pepe-vault-sync.sh", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-vault-sync.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-session-dump.sh",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -21,7 +49,41 @@
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "__HOME__/.claude/pepe-memory-hook.sh", "timeout": 5 }
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-memory-hook.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-skills-tracker.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-pretool-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__HOME__/.claude/pepe-skill-suggester.sh"
+          }
         ]
       }
     ]
@@ -31,20 +93,49 @@
     "command": "__HOME__/.claude/statusline-pepe.sh",
     "padding": 0
   },
+  "enabledPlugins": {},
+  "extraKnownMarketplaces": {},
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
-      "Дизассемблирую", "Распаковываю", "Анализирую", "Декодирую", "Реверсю",
-      "Парсю байты", "Сканирую секции", "Снимаю обфускацию", "Хукаю функции",
-      "Дампаю память", "Курю опкоды", "Эмулирую", "Разбираю заголовок",
-      "Ловлю SIGTRAP", "Брожу по хипу", "Расшифровываю", "Восстанавливаю импорты",
-      "Допрашиваю байткод", "Снимаю слой пакера", "Зову гидру", "Меняю флаги",
-      "Гоню frida", "Жую ассемблер", "Слушаю джампы", "Считаю энтропию",
-      "Ныряю в .text", "Бью по INT3", "Раскручиваю стек", "Чищу секции",
-      "Читаю стринги", "Курю шеллкод", "Ставлю брейкпоинт", "Обхожу анти-дебаг",
+      "Дизассемблирую",
+      "Распаковываю",
+      "Анализирую",
+      "Декодирую",
+      "Реверсю",
+      "Парсю байты",
+      "Сканирую секции",
+      "Снимаю обфускацию",
+      "Хукаю функции",
+      "Дампаю память",
+      "Курю опкоды",
+      "Эмулирую",
+      "Разбираю заголовок",
+      "Ловлю SIGTRAP",
+      "Брожу по хипу",
+      "Расшифровываю",
+      "Восстанавливаю импорты",
+      "Допрашиваю байткод",
+      "Снимаю слой пакера",
+      "Зову гидру",
+      "Меняю флаги",
+      "Гоню frida",
+      "Жую ассемблер",
+      "Слушаю джампы",
+      "Считаю энтропию",
+      "Ныряю в .text",
+      "Бью по INT3",
+      "Раскручиваю стек",
+      "Чищу секции",
+      "Читаю стринги",
+      "Курю шеллкод",
+      "Ставлю брейкпоинт",
+      "Обхожу анти-дебаг",
       "Выдираю ключ"
     ]
   },
-  "effortLevel": "medium",
-  "theme": "dark"
+  "effortLevel": "xhigh",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
+  "skipAutoPermissionPrompt": true
 }
