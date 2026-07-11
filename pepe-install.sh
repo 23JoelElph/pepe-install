@@ -237,13 +237,77 @@ else
     fi
 fi
 
-# ═════ 7. cron: push 3× в день на GitHub ═════════════
-log "[7] cron: push brain+memory 3× в день на GitHub"
+# ═════ 7. MCP серверы (наш набор + OSINT) ═════════════
+log "[7] MCP серверы"
+if [ -f "$REAL_HOME/.claude.json" ]; then
+    sudo -u "$REAL_USER" python3 <<PYEOF
+import json, os
+p = "$REAL_HOME/.claude.json"
+d = json.load(open(p))
+if 'mcpServers' not in d:
+    d['mcpServers'] = {}
+
+# Наш набор: универсальные + сильные для реверса / OSINT / разработки
+OUR_MCPS = {
+    # актуальные docs библиотек — must-have для разработки
+    "context7": {"type": "http", "url": "https://mcp.context7.com/mcp"},
+    # явное chain-of-thought для сложных задач
+    "sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]},
+    # персистентная память между разговорами
+    "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
+    # headless-браузер (recon, скраппинг, отчёты)
+    "playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"]},
+}
+
+added = []
+for name, cfg in OUR_MCPS.items():
+    if name not in d['mcpServers']:
+        d['mcpServers'][name] = cfg
+        added.append(name)
+
+json.dump(d, open(p, 'w'), indent=2, ensure_ascii=False)
+print(f'  ✓ добавлено: {added}' if added else '  · всё было')
+print(f'  всего MCP: {len(d["mcpServers"])}')
+PYEOF
+    ok "MCP настроены"
+else
+    warn "~/.claude.json ещё нет — MCP пропущены (запусти claude один раз, потом pepe-fix.sh)"
+fi
+
+# ═════ 8. cron: pull-rebase + push 3× в день ═════════
+log "[8] cron: 3× в день pull+push (safe, не потеряет локальное)"
 CRON_TAG="# pepe-vault-sync-github"
 (sudo -u "$REAL_USER" crontab -l 2>/dev/null | grep -v "$CRON_TAG"; \
- echo "0 9,15,22 * * * cd $VAULT_DIR && git push origin main >/dev/null 2>&1 $CRON_TAG") | \
+ echo "0 9,15,22 * * * cd $VAULT_DIR && git pull --rebase --autostash origin main && git push origin main >/dev/null 2>&1 $CRON_TAG") | \
     sudo -u "$REAL_USER" crontab -
-ok "cron: 09:00 / 15:00 / 22:00 push → GitHub"
+ok "cron: 09:00 / 15:00 / 22:00 pull-rebase + push → GitHub"
+
+# ═════ 9. Persistent friend memory (кто такой friend + Molodoy) ═════
+log "[9] персональная память друга: memory/user-${FRIEND_NAME}.md"
+FRIEND_MEM="$VAULT_DIR/memory/user-${FRIEND_NAME}.md"
+if [ -d "$VAULT_DIR" ] && [ ! -f "$FRIEND_MEM" ]; then
+    sudo -u "$REAL_USER" tee "$FRIEND_MEM" >/dev/null <<EOF
+---
+name: user-${FRIEND_NAME}
+description: "Личная заметка ${FRIEND_NAME} — базовый шаблон, дополняй по мере знакомства"
+metadata:
+  node_type: memory
+  type: user
+---
+
+# ${FRIEND_NAME}
+
+**Роль:** пользователь PEPE (друг Molodoy)
+
+**Заметка:** это твой личный файл. Дополняй его — я буду читать при старте каждой сессии.
+Например: «моя основная задача — реверс UAV-плат», «люблю кириллические комменты», и т.д.
+
+**Обращение:** узнаю по мере общения.
+
+**Связано:** [[user-molodoy]], [[pepe-lore]]
+EOF
+    ok "создан $(basename $FRIEND_MEM)"
+fi
 
 # ═════ финал ═════════════════════════════════════════
 log "🐸 PEPE CODE установлен · $FRIEND_NAME"
